@@ -13,6 +13,7 @@
 #include "SpatialOS.h"
 #include "SpatialPackageMapClient.h"
 #include "SpatialTypeBinding.h"
+#include "SpatialInteropPipelineBlock.h"
 
 DEFINE_LOG_CATEGORY(LogSpatialGDKActorChannel);
 
@@ -364,42 +365,44 @@ bool USpatialActorChannel::ReplicateActor()
 	{		
 		if (RepFlags.bNetInitial && bCreatingNewEntity)
 		{
-			// When a player is connected, a FUniqueNetIdRepl is created with the players worker ID. This eventually gets stored
-			// inside APlayerState::UniqueId when UWorld::SpawnPlayActor is called. If this actor channel is managing a pawn or a 
-			// player controller, get the player state.
-			FString PlayerWorkerId;
-			APlayerState* PlayerState = Cast<APlayerState>(Actor);
-			if (!PlayerState)
+			if (!Actor->IsFullNameStableForNetworking() || SpatialNetDriver->GetSpatialInterop()->CanSpawnReplicatedStablyNamedActors())
 			{
-				APawn* Pawn = Cast<APawn>(Actor);
-				if (Pawn)
+				// When a player is connected, a FUniqueNetIdRepl is created with the players worker ID. This eventually gets stored
+				// inside APlayerState::UniqueId when UWorld::SpawnPlayActor is called. If this actor channel is managing a pawn or a 
+				// player controller, get the player state.
+				FString PlayerWorkerId;
+				APlayerState* PlayerState = Cast<APlayerState>(Actor);
+				if (!PlayerState)
 				{
-					PlayerState = Pawn->PlayerState;
+					APawn* Pawn = Cast<APawn>(Actor);
+					if (Pawn)
+					{
+						PlayerState = Pawn->PlayerState;
+					}
 				}
-			}
-			if (!PlayerState)
-			{
-				if (PlayerController)
+				if (!PlayerState)
 				{
-					PlayerState = PlayerController->PlayerState;
+					if (PlayerController)
+					{
+						PlayerState = PlayerController->PlayerState;
+					}
 				}
-			}
-			if (PlayerState)
-			{
-				PlayerWorkerId = PlayerState->UniqueId.ToString();
-			}
-			else
-			{
-				UE_LOG(LogSpatialGDKActorChannel, Log, TEXT("Unable to find PlayerState for %s, this usually means that this actor is not owned by a player."), *Actor->GetClass()->GetName());
-			}
+				if (PlayerState)
+				{
+					PlayerWorkerId = PlayerState->UniqueId.ToString();
+				}
+				else
+				{
+					UE_LOG(LogSpatialGDKActorChannel, Log, TEXT("Unable to find PlayerState for %s, this usually means that this actor is not owned by a player."), *Actor->GetClass()->GetName());
+				}
 
-			// Ensure that the initial changelist contains _every_ property. This ensures that the default properties are written to the entity template.
-			// Otherwise, there will be a mismatch between the rep state shadow data used by CompareProperties and the entity in SpatialOS.
-			TArray<uint16> InitialRepChanged = SkipOverChangelistArrays(*ActorReplicator);
+				// Ensure that the initial changelist contains _every_ property. This ensures that the default properties are written to the entity template.
+				// Otherwise, there will be a mismatch between the rep state shadow data used by CompareProperties and the entity in SpatialOS.
+				TArray<uint16> InitialRepChanged = SkipOverChangelistArrays(*ActorReplicator);
 
-			// Calculate initial spatial position (but don't send component update) and create the entity.
-			LastSpatialPosition = GetActorSpatialPosition(Actor);
-			CreateEntityRequestId = Interop->SendCreateEntityRequest(this, LastSpatialPosition, PlayerWorkerId, InitialRepChanged, HandoverChanged);
+				// Calculate initial spatial position (but don't send component update) and create the entity.
+				LastSpatialPosition = GetActorSpatialPosition(Actor);
+				CreateEntityRequestId = Interop->SendCreateEntityRequest(this, LastSpatialPosition, PlayerWorkerId, InitialRepChanged, HandoverChanged);
 		}
 		else
 		{
@@ -500,11 +503,6 @@ bool USpatialActorChannel::ReplicateSubobject(UObject *Obj, const FReplicationFl
 
 void USpatialActorChannel::SetChannelActor(AActor* InActor)
 {
-	//To account for stably named actors
-	if (SpatialNetDriver->GetSpatialInterop()->GetTypeBindingByClass(InActor->GetClass()) && InActor->IsFullNameStableForNetworking()) {
-		Cast<USpatialPackageMapClient>(SpatialNetDriver->GetSpatialOSNetConnection()->PackageMap)->ResolveStablyNamedObject(InActor);
-	}
-
 	Super::SetChannelActor(InActor);
 
 	if (!bCoreActor)
@@ -541,20 +539,16 @@ void USpatialActorChannel::SetChannelActor(AActor* InActor)
 	// If the entity registry has no entry for this actor, this means we need to create it.
 	if (ActorEntityId == 0)
 	{
-		USpatialNetConnection* SpatialConnection = Cast<USpatialNetConnection>(Connection);
-		check(SpatialConnection);
-
-		// Mark this channel as being responsible for creating this entity once we have an entity ID.
-		bCreatingNewEntity = true;
-
-		// Reserve an entity ID for this channel.
-		TSharedPtr<worker::Connection> PinnedConnection = WorkerConnection.Pin();
-		if (PinnedConnection.IsValid())
+		if (InActor->IsFullNameStableForNetworking())
 		{
-			ReserveEntityIdRequestId = PinnedConnection->SendReserveEntityIdRequest(0);
+			USpatialPackageMapClient* PackageMap = Cast<USpatialPackageMapClient>(SpatialNetDriver->GetSpatialOSNetConnection()->PackageMap);
+			PackageMap->ResolveStablyNamedObject(InActor);
+			SpatialNetDriver->GetSpatialInterop()->ReserveReplicatedStablyNamedActor(this);
 		}
-		UE_LOG(LogSpatialGDKActorChannel, Log, TEXT("Opened channel for actor %s with no entity ID. Initiated reserve entity ID. Request id: %d"),
-			*InActor->GetName(), ReserveEntityIdRequestId.Id);
+		else
+		{
+			SendReserveEntityIdRequest();
+		}
 	}
 	else
 	{
@@ -563,6 +557,24 @@ void USpatialActorChannel::SetChannelActor(AActor* InActor)
 		// Inform USpatialInterop of this new actor channel/entity pairing
 		SpatialNetDriver->GetSpatialInterop()->AddActorChannel(ActorEntityId.ToSpatialEntityId(), this);
 	}
+}
+
+void USpatialActorChannel::SendReserveEntityIdRequest()
+{
+	USpatialNetConnection* SpatialConnection = Cast<USpatialNetConnection>(Connection);
+	check(SpatialConnection);
+
+	// Mark this channel as being responsible for creating this entity once we have an entity ID.
+	bCreatingNewEntity = true;
+
+	// Reserve an entity ID for this channel.
+	TSharedPtr<worker::Connection> PinnedConnection = WorkerConnection.Pin();
+	if (PinnedConnection.IsValid())
+	{
+		ReserveEntityIdRequestId = PinnedConnection->SendReserveEntityIdRequest(0);
+	}
+	UE_LOG(LogSpatialGDKActorChannel, Log, TEXT("Opened channel for actor %s with no entity ID. Initiated reserve entity ID. Request id: %d"),
+		*Actor->GetName(), ReserveEntityIdRequestId.Id);
 }
 
 void USpatialActorChannel::PreReceiveSpatialUpdate(UObject* TargetObject)
