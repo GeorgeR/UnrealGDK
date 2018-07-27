@@ -13,7 +13,6 @@
 #include "SpatialOS.h"
 #include "SpatialPackageMapClient.h"
 #include "SpatialTypeBinding.h"
-#include "SpatialInteropPipelineBlock.h"
 
 DEFINE_LOG_CATEGORY(LogSpatialGDKActorChannel);
 
@@ -619,7 +618,11 @@ void USpatialActorChannel::OnReserveEntityIdResponse(const worker::ReserveEntity
 	}
 
 	ActorEntityId = *Op.EntityId;
+	RegisterEntityId(ActorEntityId);
+}
 
+void USpatialActorChannel::RegisterEntityId(const FEntityId& ActorEntityId)
+{
 	SpatialNetDriver->GetEntityRegistry()->AddToRegistry(ActorEntityId, GetActor());
 
 	USpatialInterop* Interop = SpatialNetDriver->GetSpatialInterop();
@@ -631,6 +634,12 @@ void USpatialActorChannel::OnReserveEntityIdResponse(const worker::ReserveEntity
 	if (Interop->IsSingletonClass(Actor->GetClass()))
 	{
 		Interop->UpdateGlobalStateManager(Actor->GetClass()->GetName(), ActorEntityId);
+	}
+
+	// If a replicated stably named actor was created, update the GSM with the proper path and entity id
+	if (Actor->IsFullNameStableForNetworking())
+	{
+		Interop->AddReplicatedStablyNamedActorToGSM(ActorEntityId, Actor);
 	}
 }
 
