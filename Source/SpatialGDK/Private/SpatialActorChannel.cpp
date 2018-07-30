@@ -8,6 +8,7 @@
 #include "Net/NetworkProfiler.h"
 #include "SpatialConstants.h"
 #include "SpatialInterop.h"
+#include "SpatialInteropPipelineBlock.h"
 #include "SpatialNetConnection.h"
 #include "SpatialNetDriver.h"
 #include "SpatialOS.h"
@@ -635,12 +636,6 @@ void USpatialActorChannel::RegisterEntityId(const FEntityId& ActorEntityId)
 	{
 		Interop->UpdateGlobalStateManager(Actor->GetClass()->GetName(), ActorEntityId);
 	}
-
-	// If a replicated stably named actor was created, update the GSM with the proper path and entity id
-	if (Actor->IsFullNameStableForNetworking())
-	{
-		Interop->AddReplicatedStablyNamedActorToGSM(ActorEntityId, Actor);
-	}
 }
 
 void USpatialActorChannel::OnCreateEntityResponse(const worker::CreateEntityResponseOp& Op)
@@ -660,6 +655,12 @@ void USpatialActorChannel::OnCreateEntityResponse(const worker::CreateEntityResp
 	if (PinnedView.IsValid())
 	{
 		PinnedView->Remove(CreateEntityCallback);
+	}
+
+	// If a replicated stably named actor was created, update the GSM with the proper path and entity id
+	if (Actor->IsFullNameStableForNetworking())
+	{
+		SpatialNetDriver->GetSpatialInterop()->AddReplicatedStablyNamedActorToGSM(ActorEntityId, Actor);
 	}
 
 	UE_LOG(LogSpatialGDKActorChannel, Log, TEXT("Received create entity response op for %lld"), ActorEntityId.ToSpatialEntityId());
