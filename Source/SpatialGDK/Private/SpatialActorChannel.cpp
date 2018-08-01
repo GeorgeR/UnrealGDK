@@ -144,7 +144,7 @@ bool USpatialActorChannel::IsCriticalEntity()
 	}
 
 	// Don't delete if the actor is a Singleton
-	NameToEntityIdMap* SingletonNameToEntityId = SpatialNetDriver->GetSpatialInterop()->GetSingletonNameToEntityId();
+	StringToEntityIdMap* SingletonNameToEntityId = SpatialNetDriver->GetSpatialInterop()->GetSingletonNameToEntityId();
 
 	if (SingletonNameToEntityId == nullptr)
 	{
@@ -635,7 +635,7 @@ void USpatialActorChannel::RegisterEntityId(const FEntityId& ActorEntityId)
 	// If a Singleton was created, update the GSM with the proper Id.
 	if (Interop->IsSingletonClass(Actor->GetClass()))
 	{
-		Interop->UpdateGlobalStateManager(Actor->GetClass()->GetName(), ActorEntityId);
+		Interop->AddSingletonToGSM(Actor->GetClass()->GetName(), ActorEntityId);
 	}
 }
 
