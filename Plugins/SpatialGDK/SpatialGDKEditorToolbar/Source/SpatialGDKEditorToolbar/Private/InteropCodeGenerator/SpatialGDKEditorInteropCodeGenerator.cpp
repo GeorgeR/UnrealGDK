@@ -7,6 +7,7 @@
 #include "SchemaGenerator.h"
 #include "TypeBindingGenerator.h"
 #include "TypeStructure.h"
+#include "SpatialGDKEditorToolbarSettings.h"
 #include "SpatialGDKEditorUtils.h"
 #include "Utils/CodeWriter.h"
 #include "Utils/ComponentIdGenerator.h"
@@ -148,22 +149,16 @@ bool GenerateClassHeaderMap(ClassHeaderMap& OutClasses)
 	return true;
 }
 
-FString GetOutputPath(const FString& ConfigFilePath)
+FString GetOutputPath()
 {
-	FString OutputPath = FString::Printf(TEXT("%s/Generated/"), FApp::GetProjectName());
-	const FString SettingsSectionName = "InteropCodeGen.Settings";
-	if (const FConfigSection* SettingsSection = GetConfigSection(ConfigFilePath, SettingsSectionName))
+	const USpatialGDKEditorToolbarSettings* Settings = GetDefault<USpatialGDKEditorToolbarSettings>();
+
+	if (!Settings || !Settings->InteropCodegenOutputFolder.Path.IsEmpty())
 	{
-		if (const FConfigValue* OutputModuleSetting = SettingsSection->Find("OutputPath"))
-		{
-			OutputPath = OutputModuleSetting->GetValue();
-		}
+		// TODO : Daniel handle failure case
 	}
 
-	// Ensure that the specified path ends with a path separator.
-	OutputPath.AppendChar('/');
-
-	return OutputPath;
+	return Settings->InteropCodegenOutputFolder.Path;
 }
 
 TArray<FString> CreateSingletonListFromConfigFile()
@@ -251,10 +246,7 @@ bool SpatialGDKGenerateInteropCode(const ClassHeaderMap& InteropGeneratedClasses
 	FString AbsoluteCombinedIntermediatePath = FPaths::ConvertRelativePathToFull(CombinedIntermediatePath);
 	FPlatformFileManager::Get().GetPlatformFile().CreateDirectoryTree(*AbsoluteCombinedIntermediatePath);
 
-	const FString FileName = "DefaultEditorSpatialGDK.ini";
-	const FString ConfigFilePath = FPaths::SourceConfigDir().Append(FileName);
-	const FString CombinedForwardingCodePath = FPaths::Combine(*FPaths::GetPath(FPaths::GameSourceDir()), *GetOutputPath(ConfigFilePath));
-	FString AbsoluteCombinedForwardingCodePath = FPaths::ConvertRelativePathToFull(CombinedForwardingCodePath);
+	FString AbsoluteCombinedForwardingCodePath = FPaths::ConvertRelativePathToFull(*GetOutputPath());
 
 	UE_LOG(LogSpatialGDKInteropCodeGenerator, Display, TEXT("Schema path %s - Forwarding code path %s"), *AbsoluteCombinedSchemaPath, *AbsoluteCombinedForwardingCodePath);
 
