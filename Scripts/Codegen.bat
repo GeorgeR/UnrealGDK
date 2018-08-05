@@ -13,4 +13,5 @@ if not exist %CODEGEN_PATH% (
 
 popd
 
+pause
 exit /b %ERRORLEVEL%
