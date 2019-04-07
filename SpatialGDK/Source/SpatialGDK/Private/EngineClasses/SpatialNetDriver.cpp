@@ -55,7 +55,13 @@ bool USpatialNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, c
 	FWorldDelegates::LevelAddedToWorld.AddUObject(this, &USpatialNetDriver::OnLevelAddedToWorld);
 
 	// Make absolutely sure that the actor channel that we are using is our Spatial actor channel
+#if ENGINE_MINOR_VERSION <= 21
 	ChannelClasses[CHTYPE_Actor] = USpatialActorChannel::StaticClass();
+#else
+	FChannelDefinition ChannelDefinition;
+	ChannelDefinition.ChannelClass = USpatialActorChannel::StaticClass();
+	ChannelDefinitions[CHTYPE_Actor] = ChannelDefinition;
+#endif
 
 	// Extract the snapshot to load (if any) from the map URL so that once we are connected to a deployment we can load that snapshot into the Spatial deployment.
 	SnapshotToLoad = URL.GetOption(*SpatialConstants::SnapshotURLOption, TEXT(""));
@@ -490,7 +496,11 @@ void USpatialNetDriver::NotifyActorDestroyed(AActor* ThisActor, bool IsSeamlessT
 				check(Channel->OpenedLocally);
 				Channel->bClearRecentActorRefs = false;
 				// TODO: UNR-952 - Add code here for cleaning up actor channels from our maps.
+#if ENGINE_MINOR_VERSION <= 21
 				Channel->Close();
+#else
+				Channel->Close(EChannelCloseReason::Destroyed);
+#endif
 			}
 
 			// Remove it from any dormancy lists
@@ -737,7 +747,12 @@ int32 USpatialNetDriver::ServerReplicateActors_ProcessPrioritizedActors(UNetConn
 				continue;
 			}
 
+#if ENGINE_MINOR_VERSION <= 21
 			UActorChannel* Channel = (UActorChannel*)InConnection->CreateChannel(CHTYPE_Actor, 1);
+#else
+			UActorChannel* Channel = (UActorChannel*)InConnection->CreateChannelByName(NAME_Actor, EChannelCreateFlags::OpenedLocally);
+#endif
+
 			if (Channel)
 			{
 				UE_LOG(LogNetTraffic, Log, TEXT("Server replicate actor creating destroy channel for NetGUID <%s,%s> Priority: %d"), *PriorityActors[j]->DestructionInfo->NetGUID.ToString(), *PriorityActors[j]->DestructionInfo->PathName, PriorityActors[j]->Priority);
@@ -819,7 +834,12 @@ int32 USpatialNetDriver::ServerReplicateActors_ProcessPrioritizedActors(UNetConn
 					else
 					{
 						// Create a new channel for this actor.
-						Channel = (USpatialActorChannel*)InConnection->CreateChannel(CHTYPE_Actor, 1);
+
+#if ENGINE_MINOR_VERSION <= 21
+						Channel = (UActorChannel*)InConnection->CreateChannel(CHTYPE_Actor, 1);
+#else
+						Channel = DynamicCast<UActorChannel>(InConnection->CreateChannelByName(NAME_Actor, EChannelCreateFlags::OpenedLocally));
+#endif
 						if (Channel)
 						{
 							Channel->SetChannelActor(Actor);
@@ -889,7 +909,11 @@ int32 USpatialNetDriver::ServerReplicateActors_ProcessPrioritizedActors(UNetConn
 				{
 					UE_LOG(LogNetTraffic, Log, TEXT("- Closing channel for no longer relevant actor %s"), *Actor->GetName());
 					// TODO: UNR-952 - Add code here for cleaning up actor channels from our maps.
+#if ENGINE_MINOR_VERSION <= 21
 					Channel->Close();
+#else
+					Channel->Close(EChannelCloseReason::Relevancy);
+#endif
 				}
 			}
 		}
