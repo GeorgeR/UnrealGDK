@@ -836,9 +836,9 @@ int32 USpatialNetDriver::ServerReplicateActors_ProcessPrioritizedActors(UNetConn
 						// Create a new channel for this actor.
 
 #if ENGINE_MINOR_VERSION <= 21
-						Channel = (UActorChannel*)InConnection->CreateChannel(CHTYPE_Actor, 1);
+						Channel = (USpatialActorChannel*)InConnection->CreateChannel(CHTYPE_Actor, 1);
 #else
-						Channel = DynamicCast<UActorChannel>(InConnection->CreateChannelByName(NAME_Actor, EChannelCreateFlags::OpenedLocally));
+						Channel = (USpatialActorChannel*)(InConnection->CreateChannelByName(NAME_Actor, EChannelCreateFlags::OpenedLocally));
 #endif
 						if (Channel)
 						{

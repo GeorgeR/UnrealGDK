@@ -184,7 +184,7 @@ bool USpatialActorChannel::CleanUp(const bool bForDestroy, EChannelCloseReason C
 	}
 #endif
 
-	Super::CleanUp(bForDestroy, CloseReason);
+	return Super::CleanUp(bForDestroy, CloseReason);
 }
 #endif
 
@@ -198,7 +198,7 @@ int64 USpatialActorChannel::Close()
 int64 USpatialActorChannel::Close(EChannelCloseReason Reason)
 {
 	DeleteEntityIfAuthoritative();
-	Super::Close(Reason);
+	return Super::Close(Reason);
 }
 #endif
 
@@ -496,7 +496,7 @@ bool USpatialActorChannel::ReplicateSubobject(UObject* Object, const FClassInfo&
 #if ENGINE_MINOR_VERSION <= 21
 	Replicator.ChangelistMgr->Update(Object, Replicator.Connection->Driver->ReplicationFrame, Replicator.RepState->LastCompareIndex, RepFlags, bForceCompareProperties);
 #else
-	Replicator.ChangelistMgr->Update(nullptr, Object, Replicator.Connection->Driver->ReplicationFrame, Replicator.RepState->LastCompareIndex, RepFlags, bForceCompareProperties);
+	Replicator.ChangelistMgr->Update(nullptr, Object, Replicator.Connection->Driver->ReplicationFrame, RepFlags, bForceCompareProperties);
 #endif
 
 	const int32 PossibleNewHistoryIndex = Replicator.RepState->HistoryEnd % FRepState::MAX_CHANGE_HISTORY;

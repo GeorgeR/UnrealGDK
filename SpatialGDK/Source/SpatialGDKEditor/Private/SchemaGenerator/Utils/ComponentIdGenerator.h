@@ -26,6 +26,6 @@ struct FComponentIdGenerator
 
 private:
 	int InitialId;
-	int NumIds;
 	int IdReturned;
+	int NumIds;
 };
