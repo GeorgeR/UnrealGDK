@@ -373,7 +373,11 @@ int64 USpatialActorChannel::ReplicateActor()
 #if ENGINE_MINOR_VERSION <= 21
 	ActorReplicator->ChangelistMgr->Update(Actor, Connection->Driver->ReplicationFrame, ActorReplicator->RepState->LastCompareIndex, RepFlags, bForceCompareProperties);
 #else
-	ActorReplicator->ChangelistMgr->Update(nullptr, Actor, Connection->Driver->ReplicationFrame, RepFlags, bForceCompareProperties);
+	// NOTE: Not sure if this is ever the case
+	if (!ActorReplicator->RepState.IsValid())
+		return 0;
+
+	ActorReplicator->ChangelistMgr->Update(ActorReplicator->RepState.Get(), Actor, Connection->Driver->ReplicationFrame, RepFlags, bForceCompareProperties);
 #endif
 	
 	const int32 PossibleNewHistoryIndex = ActorReplicator->RepState->HistoryEnd % FRepState::MAX_CHANGE_HISTORY;

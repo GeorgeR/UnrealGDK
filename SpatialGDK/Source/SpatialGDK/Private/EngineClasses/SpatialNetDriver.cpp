@@ -59,8 +59,10 @@ bool USpatialNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, c
 	ChannelClasses[CHTYPE_Actor] = USpatialActorChannel::StaticClass();
 #else
 	FChannelDefinition ChannelDefinition;
+	ChannelDefinition.ChannelName = NAME_Actor;
 	ChannelDefinition.ChannelClass = USpatialActorChannel::StaticClass();
-	ChannelDefinitions[CHTYPE_Actor] = ChannelDefinition;
+	ChannelDefinitions.Add(ChannelDefinition);
+	ChannelDefinitionMap[NAME_Actor] = ChannelDefinition;
 #endif
 
 	// Extract the snapshot to load (if any) from the map URL so that once we are connected to a deployment we can load that snapshot into the Spatial deployment.
@@ -836,9 +838,9 @@ int32 USpatialNetDriver::ServerReplicateActors_ProcessPrioritizedActors(UNetConn
 						// Create a new channel for this actor.
 
 #if ENGINE_MINOR_VERSION <= 21
-						Channel = (USpatialActorChannel*)InConnection->CreateChannel(CHTYPE_Actor, 1);
+						Channel = Cast<USpatialActorChannel>(InConnection->CreateChannel(CHTYPE_Actor, 1));
 #else
-						Channel = (USpatialActorChannel*)(InConnection->CreateChannelByName(NAME_Actor, EChannelCreateFlags::OpenedLocally));
+						Channel = Cast<USpatialActorChannel>(InConnection->CreateChannelByName(NAME_Actor, EChannelCreateFlags::OpenedLocally));
 #endif
 						if (Channel)
 						{
